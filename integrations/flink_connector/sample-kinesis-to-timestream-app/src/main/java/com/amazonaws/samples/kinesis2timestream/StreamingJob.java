@@ -23,7 +23,7 @@ import java.util.List;
 import java.util.Properties;
 
 import com.amazonaws.samples.kinesis2timestream.kinesis.RoundRobinKinesisShardAssigner;
-import com.amazonaws.samples.kinesis2timestream.model.MyHostBase;
+import com.amazonaws.samples.kinesis2timestream.model.KinesisRecord;
 import com.amazonaws.samples.kinesis2timestream.model.TimestreamRecordConverter;
 import com.amazonaws.samples.kinesis2timestream.utils.ParameterToolUtils;
 import com.amazonaws.samples.kinesis2timestream.model.TimestreamRecordDeserializer;
@@ -60,16 +60,19 @@ public class StreamingJob {
 	private static final int MAX_TIMESTREAM_RECORDS_IN_WRITERECORDREQUEST = 100;
 	private static final int MAX_CONCURRENT_WRITES_TO_TIMESTREAM = 1000;
 
-	private static final String DEFAULT_STREAM_NAME = "TimestreamTestStream";
-	private static final String DEFAULT_REGION_NAME = "us-east-1";
+	private static final String DEFAULT_STREAM_NAME = "tenant-stream";
+	private static final String DEFAULT_DB_NAME     = "cloud-metrics-db";
+	private static final String DEFAULT_TABLE_NAME  = "events";
+	private static final String DEFAULT_REGION_NAME = "us-west-2";
 
-	public static DataStream<MyHostBase> createKinesisSource(StreamExecutionEnvironment env, ParameterTool parameter) throws Exception {
+	public static DataStream<KinesisRecord> createKinesisSource(StreamExecutionEnvironment env, ParameterTool parameter) throws Exception {
 
 		//set Kinesis consumer properties
 		Properties kinesisConsumerConfig = new Properties();
 		//set the region the Kinesis stream is located in
-		kinesisConsumerConfig.setProperty(AWSConfigConstants.AWS_REGION,
-				parameter.get("Region", DEFAULT_REGION_NAME));
+		String region = parameter.get("Region", DEFAULT_REGION_NAME);
+		kinesisConsumerConfig.setProperty(AWSConfigConstants.AWS_REGION, region);
+
 		//obtain credentials through the DefaultCredentialsProviderChain, which includes the instance metadata
 		kinesisConsumerConfig.setProperty(AWSConfigConstants.AWS_CREDENTIALS_PROVIDER, "AUTO");
 
@@ -86,10 +89,16 @@ public class StreamingJob {
 					parameter.get("SHARD_GETRECORDS_MAX", "10000"));
 		}
 
+		//read events from the Kinesis stream passed in as a parameter
+		String streamName = parameter.get("InputStreamName", DEFAULT_STREAM_NAME);
+
+		LOG.info("Kinesis stream:         {}", streamName);
+		LOG.info("Kinesis adaptive reads: {}", adaptiveReadSettingStr);
+		LOG.info("Kinesis region:         {}", region);
+
 		//create Kinesis source
-		FlinkKinesisConsumer<MyHostBase> flinkKinesisConsumer = new FlinkKinesisConsumer<>(
-				//read events from the Kinesis stream passed in as a parameter
-				parameter.get("InputStreamName", DEFAULT_STREAM_NAME),
+		FlinkKinesisConsumer<KinesisRecord> flinkKinesisConsumer = new FlinkKinesisConsumer<>(
+				streamName,
 				//deserialize events with EventSchema
 				new TimestreamRecordDeserializer(),
 				//using the previously defined properties
@@ -108,13 +117,17 @@ public class StreamingJob {
 		// set up the streaming execution environment
 		final StreamExecutionEnvironment env = StreamExecutionEnvironment.getExecutionEnvironment();
 
-		DataStream<MyHostBase> mappedInput = createKinesisSource(env, parameter);
+		DataStream<KinesisRecord> mappedInput = createKinesisSource(env, parameter);
 
-		String region = parameter.get("Region", "us-east-1");
-		String databaseName = parameter.get("TimestreamDbName", "kdaflink");
-		String tableName = parameter.get("TimestreamTableName", "kinesisdata");
+		String region = parameter.get("Region", DEFAULT_REGION_NAME);
+		String databaseName = parameter.get("TimestreamDbName", DEFAULT_DB_NAME);
+		String tableName = parameter.get("TimestreamTableName", DEFAULT_TABLE_NAME);
 		long memoryStoreTTLHours = Long.parseLong(parameter.get("MemoryStoreTTLHours", "24"));
 		long magneticStoreTTLDays = Long.parseLong(parameter.get("MagneticStoreTTLDays", "7"));
+
+		LOG.info("Timestream db:     {}", databaseName);
+		LOG.info("Timestream table:  {}", tableName);
+		LOG.info("Timestream region: {}", region);
 
 		// EndpointOverride is optional. Learn more here: https://docs.aws.amazon.com/timestream/latest/developerguide/architecture.html#cells
 		String endpointOverride = parameter.get("EndpointOverride", "");
@@ -126,7 +139,7 @@ public class StreamingJob {
 		timestreamInitializer.createDatabase(databaseName);
 		timestreamInitializer.createTable(databaseName, tableName, memoryStoreTTLHours, magneticStoreTTLDays);
 
-		TimestreamSink<MyHostBase> sink = new TimestreamSink<>(
+		TimestreamSink<KinesisRecord> sink = new TimestreamSink<>(
 				(recordObject, context) -> {
 					return TimestreamRecordConverter.convert(recordObject);
 				},

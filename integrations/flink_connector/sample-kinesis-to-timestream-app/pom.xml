@@ -113,10 +113,15 @@ under the License.
             <version>20210307</version>
         </dependency>
         <!-- For writing to Timestream -->
-        <dependency>
+        <!-- <dependency>
             <groupId>software.amazon.timestream</groupId>
-            <artifactId>flink-connector-timestream</artifactId>
+            <artifactId>flink-connector-timestream-local</artifactId>
             <version>0.1</version>
+        </dependency> -->
+        <dependency>
+            <groupId>com.amazonaws.samples.connectors.timestream</groupId>
+            <artifactId>flink-connector-timestream</artifactId>
+            <version>0.1-SNAPSHOT</version>
         </dependency>
 
         <!-- sdk dependencies -->
@@ -317,6 +322,27 @@ under the License.
                                     </pluginExecutionFilter>
                                     <action>
                                         <ignore/>
+                                    </action>
+                                </pluginExecution>
+                                <pluginExecution>
+                                    <pluginExecutionFilter>
+                                        <groupId>
+                                            org.apache.maven.plugins
+                                        </groupId>
+                                        <artifactId>
+                                            maven-install-plugin
+                                        </artifactId>
+                                        <versionRange>
+                                            [2.5,)
+                                        </versionRange>
+                                        <goals>
+                                            <goal>install-file</goal>
+                                        </goals>
+                                    </pluginExecutionFilter>
+                                    <action>
+                                        <execute>
+                                            <runOnIncremental>false</runOnIncremental>
+                                        </execute>
                                     </action>
                                 </pluginExecution>
                             </pluginExecutions>
