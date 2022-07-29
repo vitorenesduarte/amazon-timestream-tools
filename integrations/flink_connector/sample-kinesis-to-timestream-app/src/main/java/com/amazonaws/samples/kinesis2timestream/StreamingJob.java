@@ -144,7 +144,7 @@ public class StreamingJob {
 					return TimestreamRecordConverter.convert(recordObject);
 				},
 				(List<Record> records) -> {
-					LOG.debug("Preparing WriteRecordsRequest with {} records", records.size());
+					LOG.info("Preparing WriteRecordsRequest with {} records", records.size());
 					return WriteRecordsRequest.builder()
 							.databaseName(databaseName)
 							.tableName(tableName)
